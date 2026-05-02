@@ -121,6 +121,43 @@
         aspect-ratio: 8 / 5;
       }
 
+      #touchControlZone {
+        margin: 14px auto 0;
+        width: 100%;
+        max-width: 800px;
+        min-height: 80px;
+        padding: 14px 16px;
+        border: 2px dashed #00ff88;
+        border-radius: 16px;
+        background: rgba(0, 0, 0, 0.8);
+        color: #ffffff;
+        display: none;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        font-family: "Orbitron", sans-serif;
+        text-align: center;
+        letter-spacing: 1px;
+        -webkit-user-select: none;
+        -moz-user-select: none;
+        -ms-user-select: none;
+        user-select: none;
+        -webkit-touch-callout: none;
+        touch-action: none;
+      }
+
+      @media (hover: none) and (pointer: coarse) {
+        #touchControlZone {
+          display: flex;
+        }
+      }
+
+      #touchControlZone strong {
+        color: #00ff88;
+        display: block;
+        margin-bottom: 6px;
+      }
+
       #ui {
         display: flex;
         justify-content: space-between;
@@ -347,6 +384,10 @@
         </button>
       </div>
     </div>
+    <div id="touchControlZone" aria-label="Zona de control táctil">
+      <strong>Zona táctil</strong>
+      Desliza el dedo aquí para mover la pala mientras juegas.
+    </div>
     <div id="activeEffects" role="status" aria-live="polite">SIN EFECTOS</div>
 
     <script>
@@ -359,6 +400,7 @@
       const startScreenEl = document.getElementById("startScreen");
       const gameOverScreenEl = document.getElementById("gameOverScreen");
       const finalScoreEl = document.getElementById("finalScore");
+      const touchControlZone = document.getElementById("touchControlZone");
 
       let audioCtx = null;
       let lastActiveEffectsUpdate = 0;
@@ -1314,6 +1356,22 @@
       let touchActive = false;
       let touchX = null;
 
+      function getControlTouchX(touch) {
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const x = (touch.clientX - rect.left) * scaleX;
+        return Math.max(0, Math.min(canvas.width, x));
+      }
+
+      function getTouchZoneX(touch) {
+        const rect = touchControlZone.getBoundingClientRect();
+        const percent = Math.max(
+          0,
+          Math.min(1, (touch.clientX - rect.left) / rect.width),
+        );
+        return percent * canvas.width;
+      }
+
       canvas.addEventListener(
         "touchstart",
         (e) => {
@@ -1350,6 +1408,38 @@
       );
 
       canvas.addEventListener(
+        "touchend",
+        (e) => {
+          e.preventDefault();
+          touchActive = false;
+          touchX = null;
+        },
+        { passive: false },
+      );
+
+      touchControlZone.addEventListener(
+        "touchstart",
+        (e) => {
+          e.preventDefault();
+          const touch = e.touches[0];
+          touchX = getTouchZoneX(touch);
+          touchActive = true;
+        },
+        { passive: false },
+      );
+
+      touchControlZone.addEventListener(
+        "touchmove",
+        (e) => {
+          e.preventDefault();
+          if (!touchActive) return;
+          const touch = e.touches[0];
+          touchX = getTouchZoneX(touch);
+        },
+        { passive: false },
+      );
+
+      touchControlZone.addEventListener(
         "touchend",
         (e) => {
           e.preventDefault();
