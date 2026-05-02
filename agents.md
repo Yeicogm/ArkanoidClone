@@ -1,11 +1,11 @@
 # AGENTS.md
 
-Simple HTML game project (Arkanoid clone). Single-file: `arkanoid.html`
+Simple HTML game project (Arkanoid clone). Single-file: `index.html`
 
 ## Project
 
 - **Type**: Browser game (HTML/CSS/JS canvas)
-- **Run**: Open `arkanoid.html` in any browser
+- **Run**: Open `index.html` in any browser
 - **Test**: Manual playtesting
 
 ## Key Commands

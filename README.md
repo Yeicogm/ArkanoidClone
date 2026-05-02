@@ -1,10 +1,10 @@
 # Arkanoid Clone
 
-Juego HTML simple inspirado en Arkanoid. Este proyecto incluye un solo archivo: `arkanoid.html`, que contiene el juego completo en HTML, CSS y JavaScript.
+Juego HTML simple inspirado en Arkanoid. Este proyecto incluye un solo archivo: `index.html`, que contiene el juego completo en HTML, CSS y JavaScript.
 
 ## Cómo jugar
 
-1. Abre `arkanoid.html` en tu navegador web.
+1. Abre `index.html` en tu navegador web.
 2. Usa las teclas `←` y `→` para mover la pala.
 3. Presiona `Espacio` para lanzar la bola.
 4. Destruye todos los ladrillos para avanzar de nivel.
@@ -30,4 +30,4 @@ Juego HTML simple inspirado en Arkanoid. Este proyecto incluye un solo archivo: 
 
 ## Archivo principal
 
-- `arkanoid.html`
+- `index.html`
