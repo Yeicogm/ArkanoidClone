@@ -352,8 +352,17 @@
     <script>
       const canvas = document.getElementById("gameCanvas");
       const ctx = canvas.getContext("2d");
+      const scoreEl = document.getElementById("score");
+      const levelEl = document.getElementById("level");
+      const livesEl = document.getElementById("lives");
+      const activeEffectsEl = document.getElementById("activeEffects");
+      const startScreenEl = document.getElementById("startScreen");
+      const gameOverScreenEl = document.getElementById("gameOverScreen");
+      const finalScoreEl = document.getElementById("finalScore");
 
       let audioCtx = null;
+      let lastActiveEffectsUpdate = 0;
+      const activeEffectsUpdateInterval = 250;
 
       function resizeCanvas() {
         const container = document.getElementById("gameContainer");
@@ -602,7 +611,7 @@
       }
 
       function updateLivesDisplay() {
-        document.getElementById("lives").textContent = "❤".repeat(lives);
+        livesEl.textContent = "❤".repeat(lives);
       }
 
       function initBalls() {
@@ -765,13 +774,14 @@
         fastPaddle: "🏃 Pala Rápida",
       };
 
-      function updateActiveEffects() {
-        const container = document.getElementById("activeEffects");
+      function updateActiveEffects(now = Date.now()) {
+        if (now - lastActiveEffectsUpdate < activeEffectsUpdateInterval) return;
+        lastActiveEffectsUpdate = now;
+        const container = activeEffectsEl;
         const effects = [];
 
         const getTimeLeft = (endTime) => {
           if (!endTime) return 0;
-          const now = Date.now();
           return Math.max(0, Math.ceil((endTime - now) / 1000));
         };
 
@@ -1114,7 +1124,7 @@
                 if (b.health <= 0) {
                   b.status = 0;
                   score += 10 * level;
-                  document.getElementById("score").textContent = score;
+                  scoreEl.textContent = score;
                   playSound("brickBreak");
 
                   if (Math.random() < giftChance) {
@@ -1159,7 +1169,7 @@
 
         if (bricksRemaining === 0) {
           level++;
-          document.getElementById("level").textContent = level;
+          levelEl.textContent = level;
           initBricks();
           ballOnPaddle = true;
           initBalls();
@@ -1223,17 +1233,18 @@
       function gameLoop() {
         if (!gameRunning) return;
 
+        const now = Date.now();
         movePaddle();
         updateBalls();
         updateGifts();
-        updateActiveEffects();
+        updateActiveEffects(now);
         draw();
         requestAnimationFrame(gameLoop);
       }
 
       function startGame() {
         initAudio();
-        document.getElementById("startScreen").style.display = "none";
+        startScreenEl.style.display = "none";
         gameRunning = true;
         initBricks();
         initBalls();
@@ -1243,7 +1254,7 @@
 
       function restartGame() {
         initAudio();
-        document.getElementById("gameOverScreen").style.display = "none";
+        gameOverScreenEl.style.display = "none";
         score = 0;
         lives = 3;
         level = 1;
@@ -1281,9 +1292,9 @@
         multiBallEndTime = 0;
         currentPaddleWidth = paddleWidth;
         gifts = [];
-        document.getElementById("score").textContent = score;
+        scoreEl.textContent = score;
         updateLivesDisplay();
-        document.getElementById("level").textContent = level;
+        levelEl.textContent = level;
         paddleX = (canvas.width - paddleWidth) / 2;
         initBricks();
         initBalls();
@@ -1294,8 +1305,8 @@
 
       function gameOver() {
         gameRunning = false;
-        document.getElementById("finalScore").textContent = score;
-        document.getElementById("gameOverScreen").style.display = "flex";
+        finalScoreEl.textContent = score;
+        gameOverScreenEl.style.display = "flex";
       }
 
       let rightPressed = false;
