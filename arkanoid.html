@@ -75,42 +75,37 @@
             animation: glow 2s ease-in-out infinite;
         }
         
-        #gameContainer {
+#gameContainer {
             position: relative;
+            max-width: 100%;
+            overflow: hidden;
         }
-        
-        #gameCanvas {
+
+#gameCanvas {
             border: 3px solid #00ff88;
             box-shadow: 0 0 30px rgba(0, 255, 136, 0.3);
             background: linear-gradient(180deg, #000 0%, #111 100%);
             animation: borderPulse 2s ease-in-out infinite;
+            touch-action: none;
+            max-width: 100%;
+            height: auto;
+            aspect-ratio: 8 / 5;
         }
-        
-        #ui {
-            display: flex;
-            justify-content: space-between;
-            width: 800px;
-            margin-bottom: 10px;
-            padding: 10px 20px;
-            background: #111;
-            border: 2px solid #00ff88;
-            border-radius: 5px;
-            font-family: 'Orbitron', sans-serif;
+
+        @media (max-width: 850px) {
+            h1 { font-size: 1.8rem; }
+            .stat { font-size: 0.9rem; }
+            #ui { padding: 8px 12px; }
         }
-        
-        .stat {
-            font-size: 1.1rem;
-            letter-spacing: 1px;
+
+        @media (max-width: 600px) {
+            .stat { font-size: 0.75rem; }
+            #ui { justify-content: center; gap: 15px; }
+            .screen-title { font-size: 2rem; }
+            button { padding: 12px 30px; font-size: 1rem; }
+            .instructions { font-size: 0.7rem; }
         }
-        
-        .stat span {
-            color: #00ff88;
-            font-weight: bold;
-        }
-        
-        #level { color: #ff00ff; }
-        #lives { color: #ffaa00; }
-        
+
         #startScreen, #gameOverScreen {
             position: absolute;
             top: 0;
@@ -181,6 +176,30 @@
             box-shadow: 0 0 30px #00ff88, 0 0 50px rgba(0, 255, 136, 0.5);
         }
         
+        #activeEffects {
+            display: none;
+            flex-wrap: wrap;
+            gap: 6px;
+            position: absolute;
+            top: 5px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 5;
+            pointer-events: none;
+        }
+
+        .effect-pill {
+            background: rgba(0, 0, 0, 0.7);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 12px;
+            padding: 2px 10px;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.7rem;
+            color: #fff;
+            white-space: nowrap;
+            animation: fadeIn 0.3s ease-out;
+        }
+
         .instructions {
             margin-top: 20px;
             color: #444;
@@ -198,10 +217,11 @@
     <div id="ui">
         <div class="stat">PUNTUACIÓN: <span id="score" role="status" aria-live="polite">0</span></div>
         <div class="stat">NIVEL: <span id="level" aria-live="polite">1</span></div>
-        <div class="stat">VIDAS: <span id="lives" aria-live="polite">3</span></div>
+        <div class="stat">VIDAS: <span id="lives" role="status" aria-live="polite">❤❤❤</span></div>
     </div>
     <div id="gameContainer">
         <canvas id="gameCanvas" width="800" height="500"></canvas>
+        <div id="activeEffects" role="status" aria-live="polite"></div>
         <div id="startScreen">
             <div class="screen-title">ARKANOID</div>
             <div class="screen-subtitle">CLONE</div>
@@ -220,6 +240,17 @@
         const ctx = canvas.getContext('2d');
         
         let audioCtx = null;
+        
+        function resizeCanvas() {
+            const container = document.getElementById('gameContainer');
+            const maxWidth = Math.min(window.innerWidth - 20, 800);
+            const scale = maxWidth / 800;
+            canvas.style.width = maxWidth + 'px';
+            canvas.style.height = (500 * scale) + 'px';
+        }
+        
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
         
         function initAudio() {
             if (!audioCtx) {
@@ -341,6 +372,7 @@
         const paddleY = canvas.height - paddleHeight - 10;
         
         let paddleX = (canvas.width - paddleWidth) / 2;
+        let currentPaddleWidth = paddleWidth;
         let score = 0;
         let lives = 3;
         let level = 1;
@@ -351,7 +383,19 @@
         let ballOnPaddle = true;
         let slowBallActive = false;
         let slowBallTimer = null;
-        const giftChance = 0.15;
+        let fastBallActive = false;
+        let fastBallTimer = null;
+        let paddleLargeActive = false;
+        let paddleLargeTimer = null;
+        let paddleSmallActive = false;
+        let paddleSmallTimer = null;
+        let superBallActive = false;
+        let superBallTimer = null;
+        let slowPaddleActive = false;
+        let slowPaddleTimer = null;
+        let fastPaddleActive = false;
+        let fastPaddleTimer = null;
+        const giftChance = 0.25;
         const giftSize = 15;
         const giftFallSpeed = 2;
         
@@ -359,14 +403,33 @@
         
         function initBricks() {
             bricks = [];
+            const pattern = levelPatterns[level % 6] || levelPatterns[0];
+            
             for (let c = 0; c < brickColumnCount; c++) {
                 bricks[c] = [];
                 for (let r = 0; r < brickRowCount; r++) {
-                    let health = getBrickHealth(r);
+                    const useBrick = pattern(c, r);
+                    let health = 0;
+                    if (useBrick) {
+                        health = getBrickHealth(r);
+                    }
                     bricks[c][r] = { x: 0, y: 0, status: health > 0 ? 1 : 0, health: health };
                 }
             }
         }
+        
+        const levelPatterns = [
+            (c, r) => true,
+            (c, r) => c === 0 || c === brickColumnCount - 1 || r === 0 || r === brickRowCount - 1,
+            (c, r) => (c + r) % 2 === 0,
+            (c, r) => c <= r,
+            (c, r) => c >= brickColumnCount - 1 - r,
+            (c, r) => r < 3 || c === 0 || c === brickColumnCount - 1,
+            (c, r) => (c < 3 || c > 6) && r < 4,
+            (c, r) => Math.abs(c - 4.5) <= r,
+            (c, r) => (c === r || c + r === 9),
+            (c, r) => r === Math.floor(c / 2)
+        ];
         
         function getBrickHealth(row) {
             const levelMultiplier = Math.min(level, 3);
@@ -377,6 +440,10 @@
         
         function createBall(x, y, speedX, speedY) {
             return { x, y, speedX, speedY };
+        }
+        
+        function updateLivesDisplay() {
+            document.getElementById('lives').textContent = '❤'.repeat(lives);
         }
         
         function initBalls() {
@@ -403,11 +470,21 @@
         
         function drawPaddle() {
             ctx.beginPath();
-            ctx.roundRect(paddleX, paddleY, paddleWidth, paddleHeight, 5);
-            const gradient = ctx.createLinearGradient(paddleX, 0, paddleX + paddleWidth, 0);
-            gradient.addColorStop(0, '#00ff88');
-            gradient.addColorStop(0.5, '#00ccff');
-            gradient.addColorStop(1, '#ff00ff');
+            ctx.roundRect(paddleX, paddleY, currentPaddleWidth, paddleHeight, 5);
+            const gradient = ctx.createLinearGradient(paddleX, 0, paddleX + currentPaddleWidth, 0);
+            if (slowPaddleActive) {
+                gradient.addColorStop(0, '#666666');
+                gradient.addColorStop(0.5, '#888888');
+                gradient.addColorStop(1, '#666666');
+            } else if (fastPaddleActive) {
+                gradient.addColorStop(0, '#ff8800');
+                gradient.addColorStop(0.5, '#ffcc00');
+                gradient.addColorStop(1, '#ff8800');
+            } else {
+                gradient.addColorStop(0, '#00ff88');
+                gradient.addColorStop(0.5, '#00ccff');
+                gradient.addColorStop(1, '#ff00ff');
+            }
             ctx.fillStyle = gradient;
             ctx.fill();
             ctx.closePath();
@@ -442,7 +519,16 @@
             gifts.forEach(gift => {
                 ctx.beginPath();
                 ctx.roundRect(gift.x, gift.y, giftSize, giftSize, 3);
-                ctx.fillStyle = gift.type === 'slowBall' ? '#00ccff' : '#ffaa00';
+                const colors = {
+                    slowBall: '#00ccff',
+                    fastBall: '#ff0055',
+                    paddleLarge: '#00ff88',
+                    paddleSmall: '#ffcc00',
+                    superBall: '#cc00ff',
+                    slowPaddle: '#666666',
+                    fastPaddle: '#ffffff'
+                };
+                ctx.fillStyle = colors[gift.type] || '#ffaa00';
                 ctx.fill();
                 ctx.strokeStyle = '#fff';
                 ctx.lineWidth = 1;
@@ -453,8 +539,16 @@
                 ctx.font = '10px Orbitron';
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
-                const letter = gift.type === 'slowBall' ? 'S' : 'M';
-                ctx.fillText(letter, gift.x + giftSize / 2, gift.y + giftSize / 2);
+                const letters = {
+                    slowBall: 'S',
+                    fastBall: 'F',
+                    paddleLarge: 'L',
+                    paddleSmall: 'Z',
+                    superBall: 'X',
+                    slowPaddle: 'P',
+                    fastPaddle: 'R'
+                };
+                ctx.fillText(letters[gift.type] || '?', gift.x + giftSize / 2, gift.y + giftSize / 2);
             });
         }
         
@@ -470,7 +564,7 @@
                 if (gifts[i].y + giftSize >= paddleY && 
                     gifts[i].y <= paddleY + paddleHeight &&
                     gifts[i].x + giftSize >= paddleX && 
-                    gifts[i].x <= paddleX + paddleWidth) {
+                    gifts[i].x <= paddleX + currentPaddleWidth) {
                     
                     applyGift(gifts[i].type);
                     gifts.splice(i, 1);
@@ -478,6 +572,47 @@
             }
         }
         
+        const giftNames = {
+            slowBall: '🧊 Slow Ball',
+            fastBall: '🔥 Fast Ball',
+            multiBall: '🎱 Multi Ball',
+            paddleLarge: '📏 Large Paddle',
+            paddleSmall: '🔽 Small Paddle',
+            superBall: '⚡ Super Ball',
+            slowPaddle: '🐌 Slow Paddle',
+            fastPaddle: '🏃 Fast Paddle'
+        };
+
+        function updateActiveEffects() {
+            const container = document.getElementById('activeEffects');
+            const effects = [];
+            
+            const getTimeLeft = (timer) => {
+                if (!timer) return 0;
+                const now = Date.now();
+                const end = timer._endTime || 0;
+                return Math.max(0, Math.ceil((end - now) / 1000));
+            };
+            
+            if (slowBallActive) effects.push({ name: giftNames.slowBall, time: getTimeLeft(slowBallTimer), color: '#00ccff' });
+            if (fastBallActive) effects.push({ name: giftNames.fastBall, time: getTimeLeft(fastBallTimer), color: '#ff0055' });
+            if (superBallActive) effects.push({ name: giftNames.superBall, time: getTimeLeft(superBallTimer), color: '#cc00ff' });
+            if (paddleLargeActive) effects.push({ name: giftNames.paddleLarge, time: getTimeLeft(paddleLargeTimer), color: '#00ff88' });
+            if (paddleSmallActive) effects.push({ name: giftNames.paddleSmall, time: getTimeLeft(paddleSmallTimer), color: '#ffcc00' });
+            if (slowPaddleActive) effects.push({ name: giftNames.slowPaddle, time: getTimeLeft(slowPaddleTimer), color: '#666666' });
+            if (fastPaddleActive) effects.push({ name: giftNames.fastPaddle, time: getTimeLeft(fastPaddleTimer), color: '#ff8800' });
+            
+            if (effects.length === 0) {
+                container.style.display = 'none';
+                container.innerHTML = '';
+            } else {
+                container.style.display = 'flex';
+                container.innerHTML = effects.map(e => 
+                    `<span class="effect-pill" style="border-color: ${e.color}; color: ${e.color}">${e.name} ${e.time}s</span>`
+                ).join('');
+            }
+        }
+
         function applyGift(type) {
             if (type === 'slowBall') {
                 if (slowBallTimer) clearTimeout(slowBallTimer);
@@ -492,22 +627,114 @@
                 playSound('gift');
                 
                 slowBallTimer = setTimeout(() => {
-                    const currentSpeed = Math.sqrt(balls[0].speedX * balls[0].speedX + balls[0].speedY * balls[0].speedY);
-                    const restoreRatio = speed / currentSpeed;
-                    balls.forEach(ball => {
-                        ball.speedX *= restoreRatio;
-                        ball.speedY *= restoreRatio;
-                    });
+                    if (balls.length > 0) {
+                        const currentSpeed = Math.sqrt(balls[0].speedX * balls[0].speedX + balls[0].speedY * balls[0].speedY);
+                        const restoreRatio = speed / currentSpeed;
+                        balls.forEach(ball => {
+                            ball.speedX *= restoreRatio;
+                            ball.speedY *= restoreRatio;
+                        });
+                    }
                     slowBallActive = false;
                     slowBallTimer = null;
                 }, 10000);
+                slowBallTimer._endTime = Date.now() + 10000;
             } else if (type === 'multiBall') {
                 playSound('gift');
-                const baseSpeed = Math.sqrt(balls[0].speedX * balls[0].speedX + balls[0].speedY * balls[0].speedY);
-                const angle1 = Math.PI / 4 + (Math.random() - 0.5) * 0.5;
-                const angle2 = -Math.PI / 4 + (Math.random() - 0.5) * 0.5;
-                balls.push(createBall(paddleX + paddleWidth / 2, paddleY - ballRadius, Math.sin(angle1) * baseSpeed, -Math.cos(angle1) * baseSpeed));
-                balls.push(createBall(paddleX + paddleWidth / 2, paddleY - ballRadius, Math.sin(angle2) * baseSpeed, -Math.cos(angle2) * baseSpeed));
+                if (balls.length > 0) {
+                    const baseSpeed = Math.sqrt(balls[0].speedX * balls[0].speedX + balls[0].speedY * balls[0].speedY);
+                    const angle1 = Math.PI / 4 + (Math.random() - 0.5) * 0.5;
+                    const angle2 = -Math.PI / 4 + (Math.random() - 0.5) * 0.5;
+                    balls.push(createBall(paddleX + currentPaddleWidth / 2, paddleY - ballRadius, Math.sin(angle1) * baseSpeed, -Math.cos(angle1) * baseSpeed));
+                    balls.push(createBall(paddleX + currentPaddleWidth / 2, paddleY - ballRadius, Math.sin(angle2) * baseSpeed, -Math.cos(angle2) * baseSpeed));
+                }
+            } else if (type === 'fastBall') {
+                if (fastBallTimer) clearTimeout(fastBallTimer);
+                if (balls.length > 0) {
+                    const speed = Math.sqrt(balls[0].speedX * balls[0].speedX + balls[0].speedY * balls[0].speedY);
+                    const newSpeed = speed * 1.8;
+                    const ratio = newSpeed / speed;
+                    balls.forEach(ball => {
+                        ball.speedX *= ratio;
+                        ball.speedY *= ratio;
+                    });
+                    fastBallActive = true;
+                    playSound('gift');
+                    
+                fastBallTimer = setTimeout(() => {
+                        if (balls.length > 0) {
+                            const currentSpeed = Math.sqrt(balls[0].speedX * balls[0].speedX + balls[0].speedY * balls[0].speedY);
+                            const restoreRatio = speed / currentSpeed;
+                            balls.forEach(ball => {
+                                ball.speedX *= restoreRatio;
+                                ball.speedY *= restoreRatio;
+                            });
+                        }
+                        fastBallActive = false;
+                        fastBallTimer = null;
+                    }, 5000);
+                    fastBallTimer._endTime = Date.now() + 5000;
+                }
+            } else if (type === 'paddleLarge') {
+                if (paddleLargeTimer) clearTimeout(paddleLargeTimer);
+                if (paddleSmallTimer) clearTimeout(paddleSmallTimer);
+                currentPaddleWidth = paddleWidth * 1.5;
+                paddleLargeActive = true;
+                playSound('gift');
+                
+                paddleLargeTimer = setTimeout(() => {
+                    currentPaddleWidth = paddleWidth;
+                    paddleLargeActive = false;
+                    paddleLargeTimer = null;
+                }, 15000);
+                paddleLargeTimer._endTime = Date.now() + 15000;
+            } else if (type === 'paddleSmall') {
+                if (paddleSmallTimer) clearTimeout(paddleSmallTimer);
+                if (paddleLargeTimer) clearTimeout(paddleLargeTimer);
+                currentPaddleWidth = paddleWidth * 0.6;
+                paddleSmallActive = true;
+                playSound('gift');
+                
+                paddleSmallTimer = setTimeout(() => {
+                    currentPaddleWidth = paddleWidth;
+                    paddleSmallActive = false;
+                    paddleSmallTimer = null;
+                }, 8000);
+                paddleSmallTimer._endTime = Date.now() + 8000;
+            } else if (type === 'superBall') {
+                if (superBallTimer) clearTimeout(superBallTimer);
+                superBallActive = true;
+                playSound('gift');
+                
+                superBallTimer = setTimeout(() => {
+                    superBallActive = false;
+                    superBallTimer = null;
+                }, 15000);
+                superBallTimer._endTime = Date.now() + 15000;
+            } else if (type === 'slowPaddle') {
+                if (slowPaddleTimer) clearTimeout(slowPaddleTimer);
+                if (fastPaddleTimer) clearTimeout(fastPaddleTimer);
+                slowPaddleActive = true;
+                fastPaddleActive = false;
+                playSound('gift');
+                
+                slowPaddleTimer = setTimeout(() => {
+                    slowPaddleActive = false;
+                    slowPaddleTimer = null;
+                }, 10000);
+                slowPaddleTimer._endTime = Date.now() + 10000;
+            } else if (type === 'fastPaddle') {
+                if (fastPaddleTimer) clearTimeout(fastPaddleTimer);
+                if (slowPaddleTimer) clearTimeout(slowPaddleTimer);
+                fastPaddleActive = true;
+                slowPaddleActive = false;
+                playSound('gift');
+                
+                fastPaddleTimer = setTimeout(() => {
+                    fastPaddleActive = false;
+                    fastPaddleTimer = null;
+                }, 12000);
+                fastPaddleTimer._endTime = Date.now() + 12000;
             }
         }
         
@@ -528,17 +755,55 @@
                 });
             }
             
+            if (fastBallActive) {
+                balls.forEach(ball => {
+                    ctx.fillStyle = 'rgba(255, 0, 85, 0.3)';
+                    ctx.beginPath();
+                    ctx.arc(ball.x, ball.y, ballRadius + 8, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.closePath();
+                });
+            }
+            
+            if (superBallActive) {
+                balls.forEach(ball => {
+                    ctx.fillStyle = 'rgba(204, 0, 255, 0.4)';
+                    ctx.beginPath();
+                    ctx.arc(ball.x, ball.y, ballRadius + 10, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.strokeStyle = '#cc00ff';
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                    ctx.closePath();
+                });
+            }
+            
             if (ballOnPaddle && balls.length > 0) {
-                balls[0].x = paddleX + paddleWidth / 2;
+                balls[0].x = paddleX + currentPaddleWidth / 2;
                 balls[0].y = paddleY - ballRadius;
             }
         }
         
         function movePaddle() {
-            if (rightPressed && paddleX < canvas.width - paddleWidth) {
-                paddleX += 7;
-            } else if (leftPressed && paddleX > 0) {
-                paddleX -= 7;
+            let paddleSpeed = 7;
+            if (slowPaddleActive) paddleSpeed = 3;
+            if (fastPaddleActive) paddleSpeed = 12;
+            
+            if (touchActive && touchX !== null) {
+                const targetX = touchX - currentPaddleWidth / 2;
+                const diff = targetX - paddleX;
+                if (Math.abs(diff) > paddleSpeed) {
+                    paddleX += Math.sign(diff) * paddleSpeed;
+                } else {
+                    paddleX = targetX;
+                }
+                paddleX = Math.max(0, Math.min(canvas.width - currentPaddleWidth, paddleX));
+            } else {
+                if (rightPressed && paddleX < canvas.width - currentPaddleWidth) {
+                    paddleX += paddleSpeed;
+                } else if (leftPressed && paddleX > 0) {
+                    paddleX -= paddleSpeed;
+                }
             }
         }
         
@@ -550,10 +815,10 @@
             
             if (ballBottom < paddleY || nextBallBottom < paddleY) return false;
             
-            if (ball.x >= paddleX && ball.x <= paddleX + paddleWidth) {
+            if (ball.x >= paddleX && ball.x <= paddleX + currentPaddleWidth) {
                 ball.y = paddleY - ballRadius;
                 
-                const hitPoint = (ball.x - paddleX) / paddleWidth;
+                const hitPoint = (ball.x - paddleX) / currentPaddleWidth;
                 const angle = (hitPoint - 0.5) * Math.PI * 0.7;
                 const speed = Math.sqrt(ball.speedX * ball.speedX + ball.speedY * ball.speedY);
                 
@@ -594,6 +859,10 @@
                             
                             b.health--;
                             
+                            if (superBallActive) {
+                                b.health = 0;
+                            }
+                            
                             if (b.health <= 0) {
                                  b.status = 0;
                                  score += 10 * level;
@@ -601,7 +870,8 @@
                                  playSound('brickBreak');
                                  
                                  if (Math.random() < giftChance) {
-                                     const giftType = Math.random() < 0.5 ? 'slowBall' : 'multiBall';
+                                     const giftTypes = ['slowBall', 'fastBall', 'paddleLarge', 'paddleSmall', 'superBall', 'slowPaddle', 'fastPaddle', 'multiBall'];
+                                     const giftType = giftTypes[Math.floor(Math.random() * giftTypes.length)];
                                      gifts.push({
                                          x: b.x + brickWidth / 2 - giftSize / 2,
                                          y: b.y + brickHeight,
@@ -678,7 +948,7 @@
                     
                     if (balls.length === 0) {
                         lives--;
-                        document.getElementById('lives').textContent = lives;
+                        updateLivesDisplay();
                         playSound('loseLife');
                         
                         if (lives <= 0) {
@@ -698,6 +968,7 @@
             movePaddle();
             updateBalls();
             updateGifts();
+            updateActiveEffects();
             draw();
             requestAnimationFrame(gameLoop);
         }
@@ -721,9 +992,28 @@
             slowBallActive = false;
             if (slowBallTimer) clearTimeout(slowBallTimer);
             slowBallTimer = null;
+            fastBallActive = false;
+            if (fastBallTimer) clearTimeout(fastBallTimer);
+            fastBallTimer = null;
+            paddleLargeActive = false;
+            if (paddleLargeTimer) clearTimeout(paddleLargeTimer);
+            paddleLargeTimer = null;
+            paddleSmallActive = false;
+            if (paddleSmallTimer) clearTimeout(paddleSmallTimer);
+            paddleSmallTimer = null;
+            superBallActive = false;
+            if (superBallTimer) clearTimeout(superBallTimer);
+            superBallTimer = null;
+            slowPaddleActive = false;
+            if (slowPaddleTimer) clearTimeout(slowPaddleTimer);
+            slowPaddleTimer = null;
+            fastPaddleActive = false;
+            if (fastPaddleTimer) clearTimeout(fastPaddleTimer);
+            fastPaddleTimer = null;
+            currentPaddleWidth = paddleWidth;
             gifts = [];
             document.getElementById('score').textContent = score;
-            document.getElementById('lives').textContent = lives;
+            updateLivesDisplay();
             document.getElementById('level').textContent = level;
             paddleX = (canvas.width - paddleWidth) / 2;
             initBricks();
@@ -741,7 +1031,40 @@
         
         let rightPressed = false;
         let leftPressed = false;
-        
+        let touchActive = false;
+        let touchX = null;
+
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            const touch = e.touches[0];
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = 800 / rect.width;
+            touchX = (touch.clientX - rect.left) * scaleX;
+            touchActive = true;
+            
+            if (ballOnPaddle && balls.length > 0) {
+                ballOnPaddle = false;
+                const baseSpeed = 4 + (level - 1) * 0.8;
+                balls[0].speedX = 3;
+                balls[0].speedY = -Math.sqrt(baseSpeed * baseSpeed - 9);
+            }
+        }, { passive: false });
+
+        canvas.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            if (!touchActive) return;
+            const touch = e.touches[0];
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = 800 / rect.width;
+            touchX = (touch.clientX - rect.left) * scaleX;
+        }, { passive: false });
+
+        canvas.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            touchActive = false;
+            touchX = null;
+        }, { passive: false });
+
         document.addEventListener('keydown', keyDownHandler);
         document.addEventListener('keyup', keyUpHandler);
         
