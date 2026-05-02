@@ -525,6 +525,8 @@
       const giftChance = 0.65;
       const giftSize = 15;
       const giftFallSpeed = 2;
+      const slowBallScale = 0.4;
+      const fastBallScale = 1.8;
 
       const brickColors = [
         "#ff0055",
@@ -583,6 +585,20 @@
 
       function createBall(x, y, speedX, speedY) {
         return { x, y, speedX, speedY };
+      }
+
+      function multiplyBallSpeeds(multiplier) {
+        balls.forEach((ball) => {
+          ball.speedX *= multiplier;
+          ball.speedY *= multiplier;
+        });
+      }
+
+      function getBallSpeedMultiplier() {
+        let multiplier = 1;
+        if (slowBallActive) multiplier *= slowBallScale;
+        if (fastBallActive) multiplier *= fastBallScale;
+        return multiplier;
       }
 
       function updateLivesDisplay() {
@@ -823,41 +839,19 @@
       function applyGift(type) {
         if (type === "slowBall") {
           if (slowBallTimer) clearTimeout(slowBallTimer);
-          const speed =
-            balls.length > 0
-              ? Math.sqrt(
-                  balls[0].speedX * balls[0].speedX +
-                    balls[0].speedY * balls[0].speedY,
-                )
-              : 0;
-          if (speed > 0) {
-            const newSpeed = speed * 0.4;
-            const ratio = newSpeed / speed;
-            balls.forEach((ball) => {
-              ball.speedX *= ratio;
-              ball.speedY *= ratio;
-            });
+          if (!slowBallActive) {
+            multiplyBallSpeeds(slowBallScale);
           }
           slowBallActive = true;
           playSound("gift");
 
           slowBallTimer = setTimeout(() => {
-            if (balls.length > 0) {
-              const currentSpeed = Math.sqrt(
-                balls[0].speedX * balls[0].speedX +
-                  balls[0].speedY * balls[0].speedY,
-              );
-              if (speed > 0 && currentSpeed > 0) {
-                const restoreRatio = speed / currentSpeed;
-                balls.forEach((ball) => {
-                  ball.speedX *= restoreRatio;
-                  ball.speedY *= restoreRatio;
-                });
-              }
+            if (slowBallActive) {
+              multiplyBallSpeeds(1 / slowBallScale);
+              slowBallActive = false;
+              slowBallEndTime = 0;
+              slowBallTimer = null;
             }
-            slowBallActive = false;
-            slowBallEndTime = 0;
-            slowBallTimer = null;
           }, 10000);
           slowBallEndTime = Date.now() + 10000;
         } else if (type === "multiBall") {
@@ -896,41 +890,19 @@
           }
         } else if (type === "fastBall") {
           if (fastBallTimer) clearTimeout(fastBallTimer);
-          const speed =
-            balls.length > 0
-              ? Math.sqrt(
-                  balls[0].speedX * balls[0].speedX +
-                    balls[0].speedY * balls[0].speedY,
-                )
-              : 0;
-          if (speed > 0) {
-            const newSpeed = speed * 1.8;
-            const ratio = newSpeed / speed;
-            balls.forEach((ball) => {
-              ball.speedX *= ratio;
-              ball.speedY *= ratio;
-            });
+          if (!fastBallActive) {
+            multiplyBallSpeeds(fastBallScale);
           }
           fastBallActive = true;
           playSound("gift");
 
           fastBallTimer = setTimeout(() => {
-            if (balls.length > 0) {
-              const currentSpeed = Math.sqrt(
-                balls[0].speedX * balls[0].speedX +
-                  balls[0].speedY * balls[0].speedY,
-              );
-              if (speed > 0 && currentSpeed > 0) {
-                const restoreRatio = speed / currentSpeed;
-                balls.forEach((ball) => {
-                  ball.speedX *= restoreRatio;
-                  ball.speedY *= restoreRatio;
-                });
-              }
+            if (fastBallActive) {
+              multiplyBallSpeeds(1 / fastBallScale);
+              fastBallActive = false;
+              fastBallEndTime = 0;
+              fastBallTimer = null;
             }
-            fastBallActive = false;
-            fastBallEndTime = 0;
-            fastBallTimer = null;
           }, 5000);
           fastBallEndTime = Date.now() + 5000;
         } else if (type === "paddleLarge") {
@@ -1344,8 +1316,10 @@
           if (ballOnPaddle && balls.length > 0) {
             ballOnPaddle = false;
             const baseSpeed = 4 + (level - 1) * 0.8;
-            balls[0].speedX = 3;
-            balls[0].speedY = -Math.sqrt(baseSpeed * baseSpeed - 9);
+            const activeMultiplier = getBallSpeedMultiplier();
+            balls[0].speedX = 3 * activeMultiplier;
+            balls[0].speedY =
+              -Math.sqrt(baseSpeed * baseSpeed - 9) * activeMultiplier;
           }
         },
         { passive: false },
@@ -1386,8 +1360,10 @@
           if (ballOnPaddle && balls.length > 0) {
             ballOnPaddle = false;
             const baseSpeed = 4 + (level - 1) * 0.8;
-            balls[0].speedX = 3;
-            balls[0].speedY = -Math.sqrt(baseSpeed * baseSpeed - 9);
+            const activeMultiplier = getBallSpeedMultiplier();
+            balls[0].speedX = 3 * activeMultiplier;
+            balls[0].speedY =
+              -Math.sqrt(baseSpeed * baseSpeed - 9) * activeMultiplier;
           }
         }
       }
