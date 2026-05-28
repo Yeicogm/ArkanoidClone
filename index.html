@@ -618,7 +618,7 @@
       let fastPaddleTimer = null;
       let fastPaddleEndTime = 0;
       const giftChance = 0.65;
-      const giftSize = 15;
+      const giftSize = 25;
       const giftFallSpeed = 2;
       const slowBallScale = 0.4;
       const fastBallScale = 1.8;
@@ -803,25 +803,72 @@
         };
 
         gifts.forEach((gift) => {
-          // On mobile, skip stroke and letter for performance
-          if (isMobile) {
-            ctx.fillStyle = colors[gift.type] || "#ffaa00";
-            ctx.fillRect(gift.x, gift.y, giftSize, giftSize);
-          } else {
-            ctx.beginPath();
-            ctx.roundRect(gift.x, gift.y, giftSize, giftSize, 3);
-            ctx.fillStyle = colors[gift.type] || "#ffaa00";
-            ctx.fill();
-            ctx.strokeStyle = "#fff";
-            ctx.lineWidth = 1;
-            ctx.stroke();
-            ctx.closePath();
+          const cx = gift.x + giftSize / 2;
+          const cy = gift.y + giftSize / 2;
+          const r = giftSize / 2 - 2;
 
-            ctx.fillStyle = "#fff";
-            ctx.font = "10px Orbitron";
+          // Draw distinct shape for each gift type
+          ctx.beginPath();
+          if (gift.type === "slowBall") {
+            // Circle
+            ctx.arc(cx, cy, r, 0, Math.PI * 2);
+          } else if (gift.type === "fastBall") {
+            // Diamond (rotated square)
+            ctx.moveTo(cx, cy - r);
+            ctx.lineTo(cx + r, cy);
+            ctx.lineTo(cx, cy + r);
+            ctx.lineTo(cx - r, cy);
+            ctx.closePath();
+          } else if (gift.type === "paddleLarge") {
+            // Wide rectangle
+            ctx.roundRect(gift.x, cy - r * 0.6, giftSize, r * 1.2, 4);
+          } else if (gift.type === "paddleSmall") {
+            // Small square
+            ctx.roundRect(cx - r * 0.7, cy - r * 0.7, r * 1.4, r * 1.4, 2);
+          } else if (gift.type === "superBall") {
+            // Star-like (octagon)
+            for (let i = 0; i < 8; i++) {
+              const angle = (i * Math.PI) / 4;
+              const px = cx + r * Math.cos(angle);
+              const py = cy + r * Math.sin(angle);
+              if (i === 0) ctx.moveTo(px, py);
+              else ctx.lineTo(px, py);
+            }
+            ctx.closePath();
+          } else if (gift.type === "slowPaddle") {
+            // Triangle pointing up
+            ctx.moveTo(cx, cy - r);
+            ctx.lineTo(cx + r, cy + r);
+            ctx.lineTo(cx - r, cy + r);
+            ctx.closePath();
+          } else if (gift.type === "fastPaddle") {
+            // Hexagon
+            for (let i = 0; i < 6; i++) {
+              const angle = (i * Math.PI) / 3 - Math.PI / 6;
+              const px = cx + r * Math.cos(angle);
+              const py = cy + r * Math.sin(angle);
+              if (i === 0) ctx.moveTo(px, py);
+              else ctx.lineTo(px, py);
+            }
+            ctx.closePath();
+          } else {
+            // Default rounded square
+            ctx.roundRect(gift.x + 2, gift.y + 2, giftSize - 4, giftSize - 4, 4);
+          }
+
+          ctx.fillStyle = colors[gift.type] || "#ffaa00";
+          ctx.fill();
+          ctx.strokeStyle = "#fff";
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+
+          // Draw letter
+          if (!isMobile) {
+            ctx.fillStyle = "#000";
+            ctx.font = "bold 11px Orbitron";
             ctx.textAlign = "center";
             ctx.textBaseline = "middle";
-            ctx.fillText(letters[gift.type] || "?", gift.x + giftSize / 2, gift.y + giftSize / 2);
+            ctx.fillText(letters[gift.type] || "?", cx, cy);
           }
         });
       }
@@ -1430,7 +1477,14 @@
             const baseSpeed = 4 + (level - 1) * 0.8;
             const activeMultiplier = getBallSpeedMultiplier();
             balls[0].speedX = 3 * activeMultiplier;
-            balls[0].speedY = -Math.sqrt(baseSpeed * baseSpeed - 9) * activeMultiplier;
+            balls[0].speedY = -Math.sqrt(baseSpeed * baseSpeed - 9) * activeMultiplier; // Launch stationary balls
+            for (let i = 1; i < balls.length; i++) {
+              if (balls[i].speedX === 0 && balls[i].speedY === 0) {
+                const angle1 = Math.PI / 4 + (Math.random() - 0.5) * 0.5;
+                balls[i].speedX = Math.sin(angle1) * baseSpeed * activeMultiplier;
+                balls[i].speedY = -Math.cos(angle1) * baseSpeed * activeMultiplier;
+              }
+            }
           }
         },
         { passive: false },
@@ -1505,7 +1559,14 @@
             const baseSpeed = 4 + (level - 1) * 0.8;
             const activeMultiplier = getBallSpeedMultiplier();
             balls[0].speedX = 3 * activeMultiplier;
-            balls[0].speedY = -Math.sqrt(baseSpeed * baseSpeed - 9) * activeMultiplier;
+            balls[0].speedY = -Math.sqrt(baseSpeed * baseSpeed - 9) * activeMultiplier; // Launch stationary balls
+            for (let i = 1; i < balls.length; i++) {
+              if (balls[i].speedX === 0 && balls[i].speedY === 0) {
+                const angle1 = Math.PI / 4 + (Math.random() - 0.5) * 0.5;
+                balls[i].speedX = Math.sin(angle1) * baseSpeed * activeMultiplier;
+                balls[i].speedY = -Math.cos(angle1) * baseSpeed * activeMultiplier;
+              }
+            }
           }
         }
       }
