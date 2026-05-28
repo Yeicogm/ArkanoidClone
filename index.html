@@ -432,6 +432,10 @@
       let cachedPaddleGradient = null;
       let cachedBallGradient = null;
 
+      // Logical dimensions (always 800x500 for game logic)
+      const LOGICAL_WIDTH = 800;
+      const LOGICAL_HEIGHT = 500;
+
       function resizeCanvas() {
         const container = document.getElementById("gameContainer");
         const maxWidth = Math.min(window.innerWidth - 20, 800);
@@ -440,16 +444,16 @@
         dpr = Math.min(window.devicePixelRatio || 1, isMobile ? 2 : 1.5);
 
         // Set actual canvas size in memory (scaled by DPR)
-        canvas.width = 800 * dpr;
-        canvas.height = 500 * dpr;
+        canvas.width = LOGICAL_WIDTH * dpr;
+        canvas.height = LOGICAL_HEIGHT * dpr;
 
-        // Scale context to account for DPR
+        // Scale context to account for DPR - all drawing uses logical coordinates
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
         // Update visual size
-        const scale = maxWidth / 800;
+        const scale = maxWidth / LOGICAL_WIDTH;
         canvas.style.width = maxWidth + "px";
-        canvas.style.height = 500 * scale + "px";
+        canvas.style.height = LOGICAL_HEIGHT * scale + "px";
 
         // Clear cached gradients on resize
         cachedPaddleGradient = null;
@@ -576,9 +580,10 @@
       const brickWidth = 65;
       const brickHeight = 20;
 
-      const paddleY = canvas.height - paddleHeight - 10;
+      // Use LOGICAL_HEIGHT instead of canvas.height which may be scaled by DPR
+      const paddleY = LOGICAL_HEIGHT - paddleHeight - 10;
 
-      let paddleX = (canvas.width - paddleWidth) / 2;
+      let paddleX = (LOGICAL_WIDTH - paddleWidth) / 2;
       let currentPaddleWidth = paddleWidth;
       let score = 0;
       let lives = 3;
@@ -825,7 +830,7 @@
         for (let i = gifts.length - 1; i >= 0; i--) {
           gifts[i].y += giftFallSpeed;
 
-          if (gifts[i].y > canvas.height) {
+          if (gifts[i].y > LOGICAL_HEIGHT) {
             gifts.splice(i, 1);
             continue;
           }
@@ -1122,9 +1127,9 @@
           } else {
             paddleX = targetX;
           }
-          paddleX = Math.max(0, Math.min(canvas.width - currentPaddleWidth, paddleX));
+          paddleX = Math.max(0, Math.min(LOGICAL_WIDTH - currentPaddleWidth, paddleX));
         } else {
-          if (rightPressed && paddleX < canvas.width - currentPaddleWidth) {
+          if (rightPressed && paddleX < LOGICAL_WIDTH - currentPaddleWidth) {
             paddleX += paddleSpeed;
           } else if (leftPressed && paddleX > 0) {
             paddleX -= paddleSpeed;
@@ -1261,8 +1266,8 @@
           ball.x += ball.speedX;
           ball.y += ball.speedY;
 
-          if (ball.x + ballRadius > canvas.width) {
-            ball.x = canvas.width - ballRadius;
+          if (ball.x + ballRadius > LOGICAL_WIDTH) {
+            ball.x = LOGICAL_WIDTH - ballRadius;
             ball.speedX = -Math.abs(ball.speedX);
             playSound("wall");
           } else if (ball.x - ballRadius < 0) {
@@ -1280,7 +1285,7 @@
           checkPaddleCollision(ball);
           collisionDetection(ball);
 
-          if (ball.y - ballRadius > canvas.height) {
+          if (ball.y - ballRadius > LOGICAL_HEIGHT) {
             balls.splice(i, 1);
 
             if (balls.length === 0) {
@@ -1377,7 +1382,7 @@
         scoreEl.textContent = score;
         updateLivesDisplay();
         levelEl.textContent = level;
-        paddleX = (canvas.width - paddleWidth) / 2;
+        paddleX = (LOGICAL_WIDTH - paddleWidth) / 2;
         initBricks();
         initBalls();
         ballOnPaddle = true;
@@ -1398,15 +1403,16 @@
 
       function getControlTouchX(touch) {
         const rect = canvas.getBoundingClientRect();
-        const scaleX = canvas.width / rect.width;
+        // Scale from visual size to logical coordinates (800)
+        const scaleX = LOGICAL_WIDTH / rect.width;
         const x = (touch.clientX - rect.left) * scaleX;
-        return Math.max(0, Math.min(canvas.width, x));
+        return Math.max(0, Math.min(LOGICAL_WIDTH, x));
       }
 
       function getTouchZoneX(touch) {
         const rect = touchControlZone.getBoundingClientRect();
         const percent = Math.max(0, Math.min(1, (touch.clientX - rect.left) / rect.width));
-        return percent * canvas.width;
+        return percent * LOGICAL_WIDTH;
       }
 
       canvas.addEventListener(
@@ -1415,7 +1421,7 @@
           e.preventDefault();
           const touch = e.touches[0];
           const rect = canvas.getBoundingClientRect();
-          const scaleX = 800 / rect.width;
+          const scaleX = LOGICAL_WIDTH / rect.width;
           touchX = (touch.clientX - rect.left) * scaleX;
           touchActive = true;
 
