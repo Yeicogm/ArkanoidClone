@@ -57,6 +57,28 @@
         }
       }
 
+      /* Mobile performance: disable expensive animations */
+      @media (hover: none) and (pointer: coarse) {
+        @keyframes glow {
+          0%,
+          100% {
+            text-shadow: 0 0 20px #00ff88;
+          }
+          50% {
+            text-shadow: 0 0 20px #00ff88;
+          }
+        }
+        @keyframes borderPulse {
+          0%,
+          100% {
+            box-shadow: 0 0 15px rgba(0, 255, 136, 0.3);
+          }
+          50% {
+            box-shadow: 0 0 15px rgba(0, 255, 136, 0.3);
+          }
+        }
+      }
+
       @media (prefers-reduced-motion: reduce) {
         *,
         *::before,
@@ -119,6 +141,19 @@
         max-width: 100%;
         height: auto;
         aspect-ratio: 8 / 5;
+        /* Performance: enable hardware acceleration */
+        will-change: transform;
+        transform: translateZ(0);
+        backface-visibility: hidden;
+        contain: strict;
+      }
+
+      /* Reduce animation complexity on mobile */
+      @media (hover: none) and (pointer: coarse) {
+        #gameCanvas {
+          animation: none;
+          box-shadow: 0 0 15px rgba(0, 255, 136, 0.3);
+        }
       }
 
       #touchControlZone {
@@ -289,12 +324,7 @@
         left: -100%;
         width: 100%;
         height: 100%;
-        background: linear-gradient(
-          90deg,
-          transparent,
-          rgba(255, 255, 255, 0.4),
-          transparent
-        );
+        background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
         transition: left 0.5s;
       }
 
@@ -354,34 +384,22 @@
     <a href="#gameCanvas" class="visually-hidden">Saltar al juego</a>
     <h1>ARKANOID</h1>
     <div id="ui">
-      <div class="stat">
-        PUNTUACIÓN: <span id="score" role="status" aria-live="polite">0</span>
-      </div>
-      <div class="stat">
-        NIVEL: <span id="level" aria-live="polite">1</span>
-      </div>
-      <div class="stat">
-        VIDAS: <span id="lives" role="status" aria-live="polite">❤❤❤</span>
-      </div>
+      <div class="stat">PUNTUACIÓN: <span id="score" role="status" aria-live="polite">0</span></div>
+      <div class="stat">NIVEL: <span id="level" aria-live="polite">1</span></div>
+      <div class="stat">VIDAS: <span id="lives" role="status" aria-live="polite">❤❤❤</span></div>
     </div>
     <div id="gameContainer">
       <canvas id="gameCanvas" width="800" height="500"></canvas>
       <div id="startScreen">
         <div class="screen-title">ARKANOID</div>
         <div class="screen-subtitle">CLONE</div>
-        <button aria-label="Iniciar juego" onclick="startGame()">
-          INICIAR JUEGO
-        </button>
+        <button aria-label="Iniciar juego" onclick="startGame()">INICIAR JUEGO</button>
         <div class="instructions">← → para mover | Espacio para lanzar</div>
       </div>
       <div id="gameOverScreen">
         <div class="screen-title">GAME OVER</div>
-        <div class="screen-subtitle">
-          Puntuación final: <span id="finalScore">0</span>
-        </div>
-        <button aria-label="Reiniciar juego" onclick="restartGame()">
-          REINICIAR
-        </button>
+        <div class="screen-subtitle">Puntuación final: <span id="finalScore">0</span></div>
+        <button aria-label="Reiniciar juego" onclick="restartGame()">REINICIAR</button>
       </div>
     </div>
     <div id="touchControlZone" aria-label="Zona de control táctil">
@@ -392,7 +410,7 @@
 
     <script>
       const canvas = document.getElementById("gameCanvas");
-      const ctx = canvas.getContext("2d");
+      const ctx = canvas.getContext("2d", { alpha: false }); // Optimize: disable alpha
       const scoreEl = document.getElementById("score");
       const levelEl = document.getElementById("level");
       const livesEl = document.getElementById("lives");
@@ -406,12 +424,36 @@
       let lastActiveEffectsUpdate = 0;
       const activeEffectsUpdateInterval = 250;
 
+      // Mobile performance: detect device capability
+      const isMobile = navigator.maxTouchPoints > 0;
+      let dpr = 1; // Device pixel ratio - default 1 for performance
+
+      // Cache gradients instead of recreating each frame
+      let cachedPaddleGradient = null;
+      let cachedBallGradient = null;
+
       function resizeCanvas() {
         const container = document.getElementById("gameContainer");
         const maxWidth = Math.min(window.innerWidth - 20, 800);
+
+        // On mobile, limit DPR to 2 for performance, use 1.5 on desktop
+        dpr = Math.min(window.devicePixelRatio || 1, isMobile ? 2 : 1.5);
+
+        // Set actual canvas size in memory (scaled by DPR)
+        canvas.width = 800 * dpr;
+        canvas.height = 500 * dpr;
+
+        // Scale context to account for DPR
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+        // Update visual size
         const scale = maxWidth / 800;
         canvas.style.width = maxWidth + "px";
         canvas.style.height = 500 * scale + "px";
+
+        // Clear cached gradients on resize
+        cachedPaddleGradient = null;
+        cachedBallGradient = null;
       }
 
       window.addEventListener("resize", resizeCanvas);
@@ -504,10 +546,7 @@
             osc.type = "square";
             osc.frequency.setValueAtTime(freq, now + i * 0.12);
             gain.gain.setValueAtTime(0.12, now + i * 0.12);
-            gain.gain.exponentialRampToValueAtTime(
-              0.001,
-              now + i * 0.12 + 0.15,
-            );
+            gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.12 + 0.15);
             osc.start(now + i * 0.12);
             osc.stop(now + i * 0.12 + 0.15);
           });
@@ -579,14 +618,7 @@
       const slowBallScale = 0.4;
       const fastBallScale = 1.8;
 
-      const brickColors = [
-        "#ff0055",
-        "#ff6600",
-        "#ffcc00",
-        "#00ff88",
-        "#00ccff",
-        "#cc00ff",
-      ];
+      const brickColors = ["#ff0055", "#ff6600", "#ffcc00", "#00ff88", "#00ccff", "#cc00ff"];
 
       function initBricks() {
         bricks = [];
@@ -612,11 +644,7 @@
 
       const levelPatterns = [
         (c, r) => true,
-        (c, r) =>
-          c === 0 ||
-          c === brickColumnCount - 1 ||
-          r === 0 ||
-          r === brickRowCount - 1,
+        (c, r) => c === 0 || c === brickColumnCount - 1 || r === 0 || r === brickRowCount - 1,
         (c, r) => (c + r) % 2 === 0,
         (c, r) => c <= r,
         (c, r) => c >= brickColumnCount - 1 - r,
@@ -666,17 +694,19 @@
       function drawBall(ball) {
         ctx.beginPath();
         ctx.arc(ball.x, ball.y, ballRadius, 0, Math.PI * 2);
-        const gradient = ctx.createRadialGradient(
-          ball.x,
-          ball.y,
-          0,
-          ball.x,
-          ball.y,
-          ballRadius,
-        );
-        gradient.addColorStop(0, "#fff");
-        gradient.addColorStop(1, "#00ff88");
-        ctx.fillStyle = gradient;
+
+        // On mobile, use solid color for performance
+        if (isMobile) {
+          ctx.fillStyle = "#00ff88";
+        } else {
+          // Cache gradient - position-independent for reuse
+          if (!cachedBallGradient) {
+            cachedBallGradient = ctx.createRadialGradient(0, 0, 0, 0, 0, ballRadius);
+            cachedBallGradient.addColorStop(0, "#fff");
+            cachedBallGradient.addColorStop(1, "#00ff88");
+          }
+          ctx.fillStyle = cachedBallGradient;
+        }
         ctx.fill();
         ctx.closePath();
       }
@@ -688,32 +718,34 @@
       function drawPaddle() {
         ctx.beginPath();
         ctx.roundRect(paddleX, paddleY, currentPaddleWidth, paddleHeight, 5);
-        const gradient = ctx.createLinearGradient(
-          paddleX,
-          0,
-          paddleX + currentPaddleWidth,
-          0,
-        );
-        if (slowPaddleActive) {
-          gradient.addColorStop(0, "#666666");
-          gradient.addColorStop(0.5, "#888888");
-          gradient.addColorStop(1, "#666666");
-        } else if (fastPaddleActive) {
-          gradient.addColorStop(0, "#ff8800");
-          gradient.addColorStop(0.5, "#ffcc00");
-          gradient.addColorStop(1, "#ff8800");
-        } else {
-          gradient.addColorStop(0, "#00ff88");
-          gradient.addColorStop(0.5, "#00ccff");
-          gradient.addColorStop(1, "#ff00ff");
+
+        // Use cached gradient or create new one (more efficient)
+        if (!cachedPaddleGradient || cachedPaddleGradient.paddleWidth !== currentPaddleWidth) {
+          const gradient = ctx.createLinearGradient(paddleX, 0, paddleX + currentPaddleWidth, 0);
+          if (slowPaddleActive) {
+            gradient.addColorStop(0, "#666666");
+            gradient.addColorStop(0.5, "#888888");
+            gradient.addColorStop(1, "#666666");
+          } else if (fastPaddleActive) {
+            gradient.addColorStop(0, "#ff8800");
+            gradient.addColorStop(0.5, "#ffcc00");
+            gradient.addColorStop(1, "#ff8800");
+          } else {
+            gradient.addColorStop(0, "#00ff88");
+            gradient.addColorStop(0.5, "#00ccff");
+            gradient.addColorStop(1, "#ff00ff");
+          }
+          cachedPaddleGradient = { gradient, paddleWidth: currentPaddleWidth };
         }
-        ctx.fillStyle = gradient;
+
+        ctx.fillStyle = cachedPaddleGradient.gradient;
         ctx.fill();
         ctx.closePath();
       }
 
       function drawBricks() {
         if (!bricks || !bricks.length) return;
+
         for (let c = 0; c < brickColumnCount; c++) {
           if (!bricks[c]) continue;
           for (let r = 0; r < brickRowCount; r++) {
@@ -724,63 +756,68 @@
               bricks[c][r].x = brickX;
               bricks[c][r].y = brickY;
 
-              ctx.beginPath();
-              ctx.rect(brickX, brickY, brickWidth, brickHeight);
+              const colorIndex = Math.min(bricks[c][r].health - 1, brickColors.length - 1);
 
-              const colorIndex = Math.min(
-                bricks[c][r].health - 1,
-                brickColors.length - 1,
-              );
-              ctx.fillStyle = brickColors[colorIndex];
-              ctx.fill();
-
-              ctx.strokeStyle = "#000";
-              ctx.lineWidth = 2;
-              ctx.stroke();
-              ctx.closePath();
+              // On mobile, skip stroke for performance
+              if (isMobile) {
+                ctx.fillStyle = brickColors[colorIndex];
+                ctx.fillRect(brickX, brickY, brickWidth, brickHeight);
+              } else {
+                ctx.beginPath();
+                ctx.rect(brickX, brickY, brickWidth, brickHeight);
+                ctx.fillStyle = brickColors[colorIndex];
+                ctx.fill();
+                ctx.strokeStyle = "#000";
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                ctx.closePath();
+              }
             }
           }
         }
       }
 
       function drawGifts() {
-        gifts.forEach((gift) => {
-          ctx.beginPath();
-          ctx.roundRect(gift.x, gift.y, giftSize, giftSize, 3);
-          const colors = {
-            slowBall: "#00ccff",
-            fastBall: "#ff0055",
-            paddleLarge: "#00ff88",
-            paddleSmall: "#ffcc00",
-            superBall: "#cc00ff",
-            slowPaddle: "#666666",
-            fastPaddle: "#ffffff",
-          };
-          ctx.fillStyle = colors[gift.type] || "#ffaa00";
-          ctx.fill();
-          ctx.strokeStyle = "#fff";
-          ctx.lineWidth = 1;
-          ctx.stroke();
-          ctx.closePath();
+        const letters = {
+          slowBall: "S",
+          fastBall: "F",
+          paddleLarge: "L",
+          paddleSmall: "Z",
+          superBall: "X",
+          slowPaddle: "P",
+          fastPaddle: "R",
+        };
+        const colors = {
+          slowBall: "#00ccff",
+          fastBall: "#ff0055",
+          paddleLarge: "#00ff88",
+          paddleSmall: "#ffcc00",
+          superBall: "#cc00ff",
+          slowPaddle: "#666666",
+          fastPaddle: "#ffffff",
+        };
 
-          ctx.fillStyle = "#fff";
-          ctx.font = "10px Orbitron";
-          ctx.textAlign = "center";
-          ctx.textBaseline = "middle";
-          const letters = {
-            slowBall: "S",
-            fastBall: "F",
-            paddleLarge: "L",
-            paddleSmall: "Z",
-            superBall: "X",
-            slowPaddle: "P",
-            fastPaddle: "R",
-          };
-          ctx.fillText(
-            letters[gift.type] || "?",
-            gift.x + giftSize / 2,
-            gift.y + giftSize / 2,
-          );
+        gifts.forEach((gift) => {
+          // On mobile, skip stroke and letter for performance
+          if (isMobile) {
+            ctx.fillStyle = colors[gift.type] || "#ffaa00";
+            ctx.fillRect(gift.x, gift.y, giftSize, giftSize);
+          } else {
+            ctx.beginPath();
+            ctx.roundRect(gift.x, gift.y, giftSize, giftSize, 3);
+            ctx.fillStyle = colors[gift.type] || "#ffaa00";
+            ctx.fill();
+            ctx.strokeStyle = "#fff";
+            ctx.lineWidth = 1;
+            ctx.stroke();
+            ctx.closePath();
+
+            ctx.fillStyle = "#fff";
+            ctx.font = "10px Orbitron";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText(letters[gift.type] || "?", gift.x + giftSize / 2, gift.y + giftSize / 2);
+          }
         });
       }
 
@@ -882,9 +919,7 @@
           container.style.background = "#111";
         } else {
           container.style.background = "#222";
-          container.innerHTML = effects
-            .map((e) => `${e.name} ${e.time}s`)
-            .join(" | ");
+          container.innerHTML = effects.map((e) => `${e.name} ${e.time}s`).join(" | ");
         }
       }
 
@@ -918,8 +953,7 @@
           multiBallEndTime = Date.now() + 5000;
           if (balls.length > 0) {
             const baseSpeed = Math.sqrt(
-              balls[0].speedX * balls[0].speedX +
-                balls[0].speedY * balls[0].speedY,
+              balls[0].speedX * balls[0].speedX + balls[0].speedY * balls[0].speedY,
             );
             const angle1 = Math.PI / 4 + (Math.random() - 0.5) * 0.5;
             const angle2 = -Math.PI / 4 + (Math.random() - 0.5) * 0.5;
@@ -1026,43 +1060,47 @@
       }
 
       function draw() {
+        // Use CSS background instead of clearRect for performance
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         drawBricks();
         drawBalls();
         drawPaddle();
         drawGifts();
 
-        if (slowBallActive) {
-          balls.forEach((ball) => {
-            ctx.fillStyle = "rgba(0, 204, 255, 0.3)";
-            ctx.beginPath();
-            ctx.arc(ball.x, ball.y, ballRadius + 8, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.closePath();
-          });
-        }
+        // Skip expensive glow effects on mobile
+        if (!isMobile) {
+          if (slowBallActive) {
+            balls.forEach((ball) => {
+              ctx.fillStyle = "rgba(0, 204, 255, 0.3)";
+              ctx.beginPath();
+              ctx.arc(ball.x, ball.y, ballRadius + 8, 0, Math.PI * 2);
+              ctx.fill();
+              ctx.closePath();
+            });
+          }
 
-        if (fastBallActive) {
-          balls.forEach((ball) => {
-            ctx.fillStyle = "rgba(255, 0, 85, 0.3)";
-            ctx.beginPath();
-            ctx.arc(ball.x, ball.y, ballRadius + 8, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.closePath();
-          });
-        }
+          if (fastBallActive) {
+            balls.forEach((ball) => {
+              ctx.fillStyle = "rgba(255, 0, 85, 0.3)";
+              ctx.beginPath();
+              ctx.arc(ball.x, ball.y, ballRadius + 8, 0, Math.PI * 2);
+              ctx.fill();
+              ctx.closePath();
+            });
+          }
 
-        if (superBallActive) {
-          balls.forEach((ball) => {
-            ctx.fillStyle = "rgba(204, 0, 255, 0.4)";
-            ctx.beginPath();
-            ctx.arc(ball.x, ball.y, ballRadius + 10, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.strokeStyle = "#cc00ff";
-            ctx.lineWidth = 2;
-            ctx.stroke();
-            ctx.closePath();
-          });
+          if (superBallActive) {
+            balls.forEach((ball) => {
+              ctx.fillStyle = "rgba(204, 0, 255, 0.4)";
+              ctx.beginPath();
+              ctx.arc(ball.x, ball.y, ballRadius + 10, 0, Math.PI * 2);
+              ctx.fill();
+              ctx.strokeStyle = "#cc00ff";
+              ctx.lineWidth = 2;
+              ctx.stroke();
+              ctx.closePath();
+            });
+          }
         }
 
         if (ballOnPaddle && balls.length > 0) {
@@ -1084,10 +1122,7 @@
           } else {
             paddleX = targetX;
           }
-          paddleX = Math.max(
-            0,
-            Math.min(canvas.width - currentPaddleWidth, paddleX),
-          );
+          paddleX = Math.max(0, Math.min(canvas.width - currentPaddleWidth, paddleX));
         } else {
           if (rightPressed && paddleX < canvas.width - currentPaddleWidth) {
             paddleX += paddleSpeed;
@@ -1110,9 +1145,7 @@
 
           const hitPoint = (ball.x - paddleX) / currentPaddleWidth;
           const angle = (hitPoint - 0.5) * Math.PI * 0.7;
-          const speed = Math.sqrt(
-            ball.speedX * ball.speedX + ball.speedY * ball.speedY,
-          );
+          const speed = Math.sqrt(ball.speedX * ball.speedX + ball.speedY * ball.speedY);
 
           ball.speedX = Math.sin(angle) * speed;
           ball.speedY = -Math.cos(angle) * speed;
@@ -1144,12 +1177,7 @@
                 const overlapTop = ballBottom - b.y;
                 const overlapBottom = b.y + brickHeight - ballTop;
 
-                const minOverlap = Math.min(
-                  overlapLeft,
-                  overlapRight,
-                  overlapTop,
-                  overlapBottom,
-                );
+                const minOverlap = Math.min(overlapLeft, overlapRight, overlapTop, overlapBottom);
 
                 if (minOverlap === overlapTop || minOverlap === overlapBottom) {
                   ball.speedY = -ball.speedY;
@@ -1180,8 +1208,7 @@
                       "fastPaddle",
                       "multiBall",
                     ];
-                    const giftType =
-                      giftTypes[Math.floor(Math.random() * giftTypes.length)];
+                    const giftType = giftTypes[Math.floor(Math.random() * giftTypes.length)];
                     gifts.push({
                       x: b.x + brickWidth / 2 - giftSize / 2,
                       y: b.y + brickHeight,
@@ -1272,15 +1299,28 @@
         }
       }
 
-      function gameLoop() {
+      // Frame limiting for mobile performance
+      const targetFPS = isMobile ? 60 : 60; // Could lower to 30 on very slow devices
+      const frameInterval = 1000 / targetFPS;
+      let lastFrameTime = 0;
+
+      function gameLoop(timestamp) {
         if (!gameRunning) return;
 
         const now = Date.now();
-        movePaddle();
-        updateBalls();
-        updateGifts();
-        updateActiveEffects(now);
-        draw();
+        const deltaTime = timestamp - lastFrameTime;
+
+        // Skip frame if we're running too fast (helps on mobile)
+        if (deltaTime >= frameInterval) {
+          lastFrameTime = timestamp - (deltaTime % frameInterval);
+
+          movePaddle();
+          updateBalls();
+          updateGifts();
+          updateActiveEffects(now);
+          draw();
+        }
+
         requestAnimationFrame(gameLoop);
       }
 
@@ -1365,10 +1405,7 @@
 
       function getTouchZoneX(touch) {
         const rect = touchControlZone.getBoundingClientRect();
-        const percent = Math.max(
-          0,
-          Math.min(1, (touch.clientX - rect.left) / rect.width),
-        );
+        const percent = Math.max(0, Math.min(1, (touch.clientX - rect.left) / rect.width));
         return percent * canvas.width;
       }
 
@@ -1387,8 +1424,7 @@
             const baseSpeed = 4 + (level - 1) * 0.8;
             const activeMultiplier = getBallSpeedMultiplier();
             balls[0].speedX = 3 * activeMultiplier;
-            balls[0].speedY =
-              -Math.sqrt(baseSpeed * baseSpeed - 9) * activeMultiplier;
+            balls[0].speedY = -Math.sqrt(baseSpeed * baseSpeed - 9) * activeMultiplier;
           }
         },
         { passive: false },
@@ -1463,8 +1499,7 @@
             const baseSpeed = 4 + (level - 1) * 0.8;
             const activeMultiplier = getBallSpeedMultiplier();
             balls[0].speedX = 3 * activeMultiplier;
-            balls[0].speedY =
-              -Math.sqrt(baseSpeed * baseSpeed - 9) * activeMultiplier;
+            balls[0].speedY = -Math.sqrt(baseSpeed * baseSpeed - 9) * activeMultiplier;
           }
         }
       }
